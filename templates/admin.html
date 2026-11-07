@@ -1,0 +1,63 @@
+{% extends 'base.html' %} {% block content %}
+<div class="h-full flex flex-col p-8 max-w-7xl mx-auto">
+  <div
+    class="bg-gray-800 p-6 rounded shadow border border-gray-700 flex-1 overflow-hidden flex flex-col"
+  >
+    <h1 class="text-2xl font-bold mb-4 border-b border-gray-600 pb-2">
+      カード管理一覧
+    </h1>
+
+    <!-- Vue.js アプリケーション領域 -->
+    <div id="admin-app" class="flex-1 overflow-auto">
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div
+          v-for="card in cards"
+          :key="card.id"
+          class="bg-gray-700 p-3 rounded border border-gray-600 flex flex-col"
+        >
+          <!-- 画像表示部分を追加 -->
+          <div
+            class="mb-2 aspect-[63/88] w-full bg-gray-900 rounded overflow-hidden flex items-center justify-center"
+          >
+            <img
+              v-if="card.image_url"
+              :src="card.image_url"
+              class="w-full h-full object-cover"
+            />
+            <span v-else class="text-xs text-gray-500">NO IMAGE</span>
+          </div>
+
+          <!-- テキスト情報 -->
+          <div class="font-bold text-blue-300 text-xs">[[ card.id ]]</div>
+          <div class="font-bold text-sm mb-1">[[ card.name ]]</div>
+          <div class="text-[10px] text-gray-300 leading-tight">
+            種類: [[ card.type ]]<br />
+            クラス: [[ card.class ]]<br />
+            Lv: [[ card.level !== null ? card.level : '-' ]] / Pwr: [[
+            card.power !== null ? card.power : '-' ]]<br />
+          </div>
+        </div>
+      </div>
+      <div v-if="cards.length === 0" class="text-gray-400 mt-4 text-center">
+        データベースにカードが登録されていません。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const { createApp } = Vue;
+  createApp({
+    delimiters: ["[[", "]]"],
+    data() {
+      return {
+        cards: [],
+      };
+    },
+    async mounted() {
+      const res = await fetch("/api/cards");
+      this.cards = await res.json();
+    },
+  }).mount("#admin-app");
+</script>
+{% endblock %}

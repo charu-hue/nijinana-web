@@ -1,0 +1,66 @@
+{% extends 'base.html' %} {% block content %}
+<div class="flex h-full items-center justify-center">
+  <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-96 border border-gray-700">
+    {% with messages = get_flashed_messages(category_filter=["error"]) %} {% if
+    messages %}
+    <div class="bg-red-500 text-white p-2 rounded mb-4 text-sm text-center">
+      {% for msg in messages %}{{ msg }}{% endfor %}
+    </div>
+    {% endif %} {% endwith %}
+
+    <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">
+      ログイン
+    </h2>
+    <form method="POST" class="space-y-4 mb-8">
+      <input
+        type="text"
+        name="username"
+        placeholder="ユーザー名"
+        required
+        class="w-full p-2 bg-gray-700 border border-gray-600 rounded"
+      />
+      <input
+        type="password"
+        name="password"
+        placeholder="パスワード"
+        required
+        class="w-full p-2 bg-gray-700 border border-gray-600 rounded"
+      />
+      <button
+        type="submit"
+        name="login"
+        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded"
+      >
+        ログイン
+      </button>
+    </form>
+
+    <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">
+      新規アカウント登録
+    </h2>
+    <form method="POST" class="space-y-4">
+      <input
+        type="text"
+        name="reg_username"
+        placeholder="希望するユーザー名"
+        required
+        class="w-full p-2 bg-gray-700 border border-gray-600 rounded"
+      />
+      <input
+        type="password"
+        name="reg_password"
+        placeholder="パスワード"
+        required
+        class="w-full p-2 bg-gray-700 border border-gray-600 rounded"
+      />
+      <button
+        type="submit"
+        name="register"
+        class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded"
+      >
+        登録してログイン
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

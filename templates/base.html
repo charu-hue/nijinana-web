@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>にじなな 対戦ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  </head>
+  <body class="bg-gray-900 text-white flex flex-col h-screen overflow-hidden">
+    <!-- ナビゲーションバー -->
+    <div
+      class="bg-gray-800 p-4 shadow-md flex justify-between items-center shrink-0 border-b border-gray-700"
+    >
+      <a href="/" class="text-xl font-bold text-white hover:text-blue-400"
+        >にじなな 対戦ツール</a
+      >
+      <div class="flex items-center space-x-4">
+        {% if current_user.is_authenticated %}
+        <span class="text-gray-300"
+          >ようこそ、{{ current_user.username }}さん</span
+        >
+        <a
+          href="/logout"
+          class="bg-red-600 hover:bg-red-500 text-sm px-3 py-1 rounded"
+          >ログアウト</a
+        >
+        {% else %}
+        <a
+          href="/login"
+          class="bg-blue-600 hover:bg-blue-500 text-sm px-3 py-1 rounded"
+          >ログイン / 登録</a
+        >
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="flex-1 overflow-auto">{% block content %}{% endblock %}</div>
+  </body>
+</html>

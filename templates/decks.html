@@ -1,0 +1,77 @@
+{% extends 'base.html' %} {% block content %}
+<div id="decks-app" class="h-full bg-gray-900 p-8 overflow-auto">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <div
+      class="flex justify-between items-center border-b border-gray-700 pb-4"
+    >
+      <h1 class="text-2xl font-bold text-white">マイデッキ一覧</h1>
+      <a
+        href="/deckbuilder"
+        class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded shadow"
+        >＋ 新規デッキ作成</a
+      >
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div
+        v-for="deck in decks"
+        :key="deck.id"
+        class="bg-gray-800 p-4 rounded-lg shadow border border-gray-700 flex justify-between items-center"
+      >
+        <div>
+          <h2 class="text-xl font-bold text-blue-300">[[ deck.name ]]</h2>
+          <p class="text-sm text-gray-400 mt-1">
+            チャンネル: [[ deck.cards.channel ? 'あり' : 'なし' ]] / メイン: [[
+            deck.cards.main ? deck.cards.main.length : 0 ]]枚
+          </p>
+        </div>
+        <div class="flex space-x-2">
+          <a
+            :href="'/deckbuilder?id=' + deck.id"
+            class="bg-teal-600 hover:bg-teal-500 text-white px-3 py-1 rounded"
+            >編集</a
+          >
+          <button
+            @click="deleteDeck(deck.id)"
+            class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded"
+          >
+            削除
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="decks.length === 0"
+        class="col-span-full text-center text-gray-500 py-12"
+      >
+        デッキがありません。右上のボタンから作成してください。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const { createApp } = Vue;
+  createApp({
+    delimiters: ["[[", "]]"],
+    data() {
+      return { decks: [] };
+    },
+    methods: {
+      async loadDecks() {
+        const res = await fetch("/api/decks");
+        this.decks = await res.json();
+      },
+      async deleteDeck(id) {
+        if (confirm("本当にこのデッキを削除しますか？")) {
+          const res = await fetch(`/api/decks/${id}`, { method: "DELETE" });
+          if (res.ok) this.loadDecks();
+        }
+      },
+    },
+    mounted() {
+      this.loadDecks();
+    },
+  }).mount("#decks-app");
+</script>
+{% endblock %}

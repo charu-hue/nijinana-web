@@ -1,0 +1,348 @@
+{% extends 'base.html' %} {% block content %}
+<div id="app" class="flex flex-col h-full bg-gray-900">
+  <div
+    class="p-4 flex justify-between items-center shrink-0 border-b border-gray-800"
+  >
+    <div class="flex items-center space-x-4">
+      <a href="/decks" class="text-gray-400 hover:text-white">← 戻る</a>
+      <h2 class="text-xl font-bold text-blue-400">
+        デッキ構築 ([[ isEditing ? '編集' : '新規' ]])
+      </h2>
+    </div>
+    <button
+      @click="showSaveModal = true"
+      class="bg-blue-600 hover:bg-blue-500 px-8 py-2 rounded font-bold shadow"
+    >
+      保存
+    </button>
+  </div>
+
+  <!-- デッキ領域 -->
+  <div class="flex-1 overflow-y-auto p-4 flex space-x-6">
+    <!-- 左側：チャンネルカード枠 -->
+    <div class="w-48 shrink-0 flex flex-col items-center">
+      <h3
+        class="text-yellow-400 font-bold mb-2 cursor-pointer"
+        @click="selectMode('channel')"
+      >
+        チャンネルカード (1/1)
+      </h3>
+      <div
+        @click="selectMode('channel')"
+        class="relative cursor-pointer aspect-[63/88] w-full rounded-lg border-4 bg-gray-800 shadow transition flex items-center justify-center"
+        :class="selectingMode === 'channel' ? 'border-yellow-400' : 'border-gray-500 hover:border-gray-400'"
+      >
+        <button
+          v-if="channelCard"
+          @click.stop="removeChannel"
+          class="absolute -top-3 -right-3 bg-red-600 hover:bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg z-10"
+        >
+          ✕
+        </button>
+
+        <img
+          v-if="channelCard && channelCard.image_url"
+          :src="channelCard.image_url"
+          class="w-full h-full object-cover rounded-md"
+        />
+        <div
+          v-else-if="channelCard"
+          class="p-2 flex flex-col h-full justify-between w-full"
+        >
+          <div class="text-xs font-bold leading-tight">
+            [[ channelCard.name ]]
+          </div>
+          <div class="text-[10px] text-gray-400">[[ channelCard.id ]]</div>
+        </div>
+        <div v-else class="text-gray-500 text-sm font-bold text-center">
+          チャンネルを<br />選択してください
+        </div>
+      </div>
+    </div>
+
+    <!-- 右側：メインデッキ枠 -->
+    <div class="flex-1 flex flex-col">
+      <h3
+        class="text-blue-300 font-bold mb-2 cursor-pointer"
+        @click="selectMode('main')"
+      >
+        メインデッキ ([[ mainDeck.length ]] / 50枚)
+      </h3>
+      <div
+        @click="selectMode('main')"
+        class="flex-1 border-4 rounded-lg p-3 transition"
+        :class="selectingMode === 'main' ? 'border-blue-500 bg-gray-800 bg-opacity-30' : 'border-transparent'"
+      >
+        <div class="grid grid-cols-10 gap-2 auto-rows-max">
+          <div
+            v-for="(card, index) in mainDeck"
+            :key="index"
+            @click.stop="removeMain(index)"
+            class="relative cursor-pointer aspect-[63/88] rounded border border-gray-600 bg-gray-800 group hover:border-red-500 transition shadow"
+          >
+            <img
+              v-if="card.image_url"
+              :src="card.image_url"
+              class="w-full h-full object-cover"
+            />
+            <div v-else class="p-1 flex flex-col h-full justify-between">
+              <div class="text-[10px] font-bold leading-tight">
+                [[ card.name ]]
+              </div>
+              <div class="text-[9px] text-gray-400">[[ card.id ]]</div>
+            </div>
+            <div
+              class="absolute inset-0 bg-red-600 bg-opacity-70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <span class="text-white font-bold text-xl">✕</span>
+            </div>
+          </div>
+          <div
+            v-for="n in Math.max(0, 50 - mainDeck.length)"
+            :key="'e'+n"
+            class="aspect-[63/88] rounded border border-gray-700 border-dashed bg-gray-800 bg-opacity-30 pointer-events-none"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- プール領域 -->
+  <div class="h-64 bg-gray-800 border-t border-gray-700 flex flex-col shrink-0">
+    <div
+      class="bg-gray-900 p-2 text-center text-sm font-bold shadow-md z-10"
+      :class="selectingMode === 'channel' ? 'text-yellow-400' : 'text-blue-400'"
+    >
+      <!-- ★エラー回避：直接classを参照せず、Vueのcomputed(poolMessage)経由で表示する -->
+      [[ poolMessage ]]
+    </div>
+
+    <div class="flex-1 overflow-x-auto flex items-center px-4 space-x-2 py-2">
+      <div
+        v-for="card in filteredCards"
+        :key="card.id"
+        @click="addToDeck(card)"
+        :class="{'border-yellow-400': card.type === 'CHANNEL', 'border-transparent': card.type !== 'CHANNEL'}"
+        class="cursor-pointer w-24 aspect-[63/88] rounded border-2 bg-gray-700 hover:border-white shrink-0 shadow relative"
+      >
+        <img
+          v-if="card.image_url"
+          :src="card.image_url"
+          class="w-full h-full object-cover"
+        />
+        <div v-else class="p-1 flex flex-col h-full justify-between">
+          <div class="text-xs font-bold leading-tight">[[ card.name ]]</div>
+          <div class="text-[9px] text-gray-400">[[ card.type ]]</div>
+        </div>
+
+        <div
+          v-if="card.is_iris_one"
+          class="absolute top-0 right-0 bg-purple-600 text-white text-[8px] font-bold px-1 rounded-bl"
+        >
+          IRIS ONE
+        </div>
+      </div>
+    </div>
+    <div class="bg-gray-900 p-3 flex space-x-2 items-center">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="カード名検索..."
+        class="w-full px-3 py-2 bg-gray-700 rounded text-white border border-gray-600"
+      />
+    </div>
+  </div>
+
+  <!-- 保存モーダル -->
+  <div
+    v-if="showSaveModal"
+    class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+  >
+    <div
+      class="bg-gray-800 p-6 rounded-lg shadow-xl w-96 border border-gray-600"
+    >
+      <h2 class="text-xl font-bold mb-4">デッキを保存</h2>
+      <p class="text-sm text-gray-400 mb-4">デッキ名を入力してください。</p>
+      <input
+        v-model="deckName"
+        type="text"
+        placeholder="例: 葛葉アグロデッキ"
+        class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white mb-6"
+      />
+      <div class="flex justify-end space-x-2">
+        <button
+          @click="showSaveModal = false"
+          class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
+        >
+          キャンセル
+        </button>
+        <button
+          @click="submitSave"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded"
+        >
+          保存する
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const { createApp } = Vue;
+  createApp({
+    delimiters: ["[[", "]]"],
+    data() {
+      return {
+        cards: [],
+        mainDeck: [],
+        channelCard: null,
+        deckName: "新規デッキ",
+        searchQuery: "",
+        editingId: null,
+        isEditing: false,
+        showSaveModal: false,
+        selectingMode: "channel",
+      };
+    },
+    computed: {
+      // ★エラー回避：メッセージの出し分けをJavaScript側で行う
+      poolMessage() {
+        if (this.selectingMode === "channel") {
+          return "▼ チャンネルカード一覧から選択 ▼";
+        } else if (this.channelCard) {
+          return "▼ クラス「" + this.channelCard["class"] + "」のカード一覧 ▼";
+        } else {
+          return "▼ チャンネルカードをセットするまでメインデッキは組めません ▼";
+        }
+      },
+      filteredCards() {
+        const q = this.searchQuery.toLowerCase();
+        let filtered = this.cards;
+
+        if (q)
+          filtered = filtered.filter(
+            (c) => c.name && c.name.toLowerCase().includes(q),
+          );
+
+        if (this.selectingMode === "channel") {
+          filtered = filtered.filter((c) => c.type === "CHANNEL");
+        } else {
+          filtered = filtered.filter((c) => c.type !== "CHANNEL");
+
+          if (this.channelCard) {
+            // ★予約語対策：c.class ではなく c['class'] を使う
+            filtered = filtered.filter(
+              (c) => c["class"] === this.channelCard["class"],
+            );
+          } else {
+            filtered = [];
+          }
+        }
+        return filtered;
+      },
+    },
+    methods: {
+      selectMode(mode) {
+        this.selectingMode = mode;
+      },
+      addToDeck(c) {
+        if (this.selectingMode === "channel") {
+          if (c.type !== "CHANNEL")
+            return alert("ここではチャンネルカードを選択してください。");
+          this.channelCard = c;
+          this.selectingMode = "main";
+        } else {
+          if (c.type === "CHANNEL")
+            return alert("メインデッキにチャンネルカードは入れられません。");
+
+          // ★予約語対策
+          if (this.channelCard && c["class"] !== this.channelCard["class"]) {
+            return alert(
+              `チャンネルカードのクラス(${this.channelCard["class"]})と一致しないカードは入れられません。`,
+            );
+          }
+
+          if (this.mainDeck.length >= 50)
+            return alert("メインデッキは50枚までです。");
+
+          const count = this.mainDeck.filter((card) => card.id === c.id).length;
+          if (count >= 4)
+            return alert(
+              `「${c.name}」(${c.id})は既に4枚入っています。\n(同じカードはデッキに4枚までです)`,
+            );
+
+          if (c.is_iris_one) {
+            const hasIris = this.mainDeck.some((card) => card.is_iris_one);
+            if (hasIris)
+              return alert(
+                "IRIS ONEのカードはデッキに1枚までしか入れられません。",
+              );
+          }
+
+          this.mainDeck.push(c);
+        }
+      },
+      removeMain(i) {
+        this.mainDeck.splice(i, 1);
+      },
+      removeChannel() {
+        this.channelCard = null;
+        this.selectingMode = "channel";
+      },
+      async submitSave() {
+        if (!this.channelCard)
+          return alert("チャンネルカードを1枚配置してください。");
+        if (this.mainDeck.length !== 50)
+          return alert("メインデッキは50枚である必要があります。");
+        if (!this.deckName.trim()) return alert("デッキ名を入力してください。");
+
+        const payload = {
+          name: this.deckName,
+          cards: {
+            channel: this.channelCard.id,
+            main: this.mainDeck.map((c) => c.id),
+          },
+        };
+        const url = this.isEditing
+          ? `/api/decks/${this.editingId}`
+          : "/api/decks";
+        const method = this.isEditing ? "PUT" : "POST";
+        const res = await fetch(url, {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) window.location.href = "/decks";
+        else alert("保存に失敗しました。");
+      },
+    },
+    async mounted() {
+      const params = new URLSearchParams(window.location.search);
+      this.editingId = params.get("id");
+      this.cards = await (await fetch("/api/cards")).json();
+
+      if (this.editingId) {
+        this.isEditing = true;
+        const decks = await (await fetch("/api/decks")).json();
+        const targetDeck = decks.find((d) => d.id == this.editingId);
+
+        if (targetDeck) {
+          this.deckName = targetDeck.name;
+          if (targetDeck.cards.channel) {
+            this.channelCard = this.cards.find(
+              (c) => c.id === targetDeck.cards.channel,
+            );
+            this.selectingMode = "main";
+          }
+          if (targetDeck.cards.main) {
+            this.mainDeck = targetDeck.cards.main
+              .map((id) => this.cards.find((c) => c.id === id))
+              .filter((c) => c);
+          }
+        }
+      }
+    },
+  }).mount("#app");
+</script>
+{% endblock %}

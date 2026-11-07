@@ -1,0 +1,1076 @@
+{% extends 'base.html' %} {% block content %}
+<div id="play-app" class="h-full flex flex-col bg-gray-900 font-sans">
+  <div
+    v-if="currentView === 'login'"
+    class="flex-1 flex items-center justify-center"
+  >
+    <div
+      class="bg-gray-800 p-8 rounded-lg shadow-lg w-96 border border-gray-700"
+    >
+      <h2
+        class="text-2xl font-bold mb-6 text-white border-b border-gray-600 pb-2"
+      >
+        対戦ルームへ入室
+      </h2>
+      <div class="space-y-4">
+        <select
+          v-model="selectedDeckId"
+          class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
+        >
+          <option value="">-- デッキを選択 --</option>
+          <option v-for="deck in myDecks" :value="deck.id">
+            [[ deck.name ]]
+          </option></select
+        ><input
+          v-model="roomPassword"
+          type="text"
+          maxlength="4"
+          placeholder="例: 1234"
+          class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
+        /><button
+          @click="joinRoom"
+          :disabled="!isJoinable"
+          :class="{'opacity-50 cursor-not-allowed': !isJoinable}"
+          class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded mt-4"
+        >
+          ロビーに入室
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    v-if="currentView === 'lobby'"
+    class="flex-1 flex flex-col items-center justify-center p-4"
+  >
+    <div
+      class="w-full max-w-4xl bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden flex flex-col h-[600px]"
+    >
+      <div
+        class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center"
+      >
+        <div>
+          <span class="text-gray-400 text-sm">ROOM PASSWORD</span>
+          <h2
+            class="text-3xl font-mono font-bold text-yellow-400 tracking-widest"
+          >
+            [[ roomPassword ]]
+          </h2>
+        </div>
+        <button
+          @click="leaveRoom"
+          class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-bold"
+        >
+          退出する
+        </button>
+      </div>
+      <div
+        class="flex-1 p-8 flex justify-center space-x-12 items-center bg-gray-800 relative"
+      >
+        <div
+          class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl font-bold italic text-gray-700"
+        >
+          VS
+        </div>
+        <div
+          v-for="n in 2"
+          :key="n"
+          class="w-72 h-80 rounded-lg border-2 flex flex-col bg-gray-900 overflow-hidden"
+          :class="getSlotPlayer(n) ? (getSlotPlayer(n).ready ? 'border-green-500' : 'border-gray-600') : 'border-dashed border-gray-700 bg-opacity-50'"
+        >
+          <template v-if="getSlotPlayer(n)"
+            ><div
+              class="p-4 border-b border-gray-700 text-center"
+              :class="getSlotPlayer(n).ready ? 'bg-green-900' : 'bg-gray-800'"
+            >
+              <div class="font-bold text-xl truncate">
+                [[ getSlotPlayer(n).username ]]
+              </div>
+              <div
+                class="text-sm font-bold mt-1"
+                :class="getSlotPlayer(n).ready ? 'text-green-300' : 'text-gray-400'"
+              >
+                [[ getSlotPlayer(n).ready ? '準備完了' : '準備中...' ]]
+              </div>
+            </div>
+            <div class="flex-1 flex flex-col items-center justify-center p-4">
+              <span class="text-xs text-gray-500 mb-1">使用デッキ</span>
+              <div class="font-bold text-blue-300 text-center w-full truncate">
+                [[ getDeckName(getSlotPlayer(n).deck_id) ]]
+              </div>
+              <div
+                v-if="getSlotPlayer(n).id === socketId && !getSlotPlayer(n).ready"
+                class="mt-6 w-full"
+              >
+                <select
+                  v-model="selectedDeckId"
+                  @change="changeDeck"
+                  class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-xs text-white"
+                >
+                  <option v-for="deck in myDecks" :value="deck.id">
+                    [[ deck.name ]]
+                  </option>
+                </select>
+              </div>
+            </div></template
+          ><template v-else
+            ><div
+              class="flex-1 flex flex-col items-center justify-center text-gray-600"
+            >
+              <span class="font-bold">対戦相手を待っています...</span>
+            </div></template
+          >
+        </div>
+      </div>
+      <div class="p-6 bg-gray-900 border-t border-gray-700 flex justify-center">
+        <button
+          v-if="amIReady"
+          @click="toggleReady"
+          class="w-64 bg-gray-600 hover:bg-gray-500 text-white font-bold py-4 rounded-full text-lg shadow-lg"
+        >
+          準備を取り消す</button
+        ><button
+          v-else
+          @click="toggleReady"
+          class="w-64 bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-full text-lg shadow-lg"
+        >
+          準備完了！
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    v-if="currentView === 'battle'"
+    class="flex-1 flex flex-col bg-green-900 relative overflow-hidden"
+  >
+    <div
+      v-if="hoveredCardId"
+      class="absolute bottom-4 left-4 z-[70] w-64 bg-gray-900 border-2 border-gray-500 rounded-lg shadow-2xl p-3 pointer-events-none transition-opacity duration-200"
+    >
+      <img
+        v-if="getCardData(hoveredCardId)?.image_url"
+        :src="getCardData(hoveredCardId).image_url"
+        class="w-full h-auto rounded border border-gray-700 mb-2"
+      />
+      <div class="text-white text-sm font-bold truncate">
+        [[ getCardData(hoveredCardId)?.name ]]
+      </div>
+      <div
+        class="flex justify-between mt-1 text-xs text-gray-300 font-bold border-b border-gray-700 pb-1"
+      >
+        <span
+          :class="{'text-yellow-400': getCardData(hoveredCardId)?.type === 'LIVER'}"
+          >Lv: [[ getCardData(hoveredCardId)?.level || 0 ]]</span
+        ><span v-if="getCardData(hoveredCardId)?.power" class="text-red-400"
+          >Pow: [[ getCardData(hoveredCardId)?.power ]]</span
+        >
+      </div>
+      <div
+        class="mt-2 text-xs text-gray-400 leading-tight whitespace-pre-wrap break-words"
+      >
+        [[ getCardData(hoveredCardId)?.text || '効果なし' ]]
+      </div>
+    </div>
+
+    <div
+      v-if="matchResult"
+      class="absolute inset-0 bg-black bg-opacity-90 z-[100] flex flex-col items-center justify-center pointer-events-auto transition-opacity duration-1000"
+    >
+      <h1
+        v-if="matchResult === 'win'"
+        class="text-8xl font-black text-yellow-400 drop-shadow-[0_0_30px_rgba(255,255,0,0.8)] animate-bounce mb-8"
+      >
+        YOU WIN !!
+      </h1>
+      <h1
+        v-else-if="matchResult === 'lose'"
+        class="text-8xl font-black text-blue-500 drop-shadow-[0_0_30px_rgba(0,0,255,0.8)] opacity-80 mb-8"
+      >
+        YOU LOSE...
+      </h1>
+      <p class="text-white text-2xl font-bold">[[ matchResultMessage ]]</p>
+      <p class="text-gray-400 mt-8 animate-pulse text-sm">
+        数秒後にロビーに戻ります...
+      </p>
+    </div>
+
+    <div
+      v-if="gameState?.pending_action?.player_sid === socketId"
+      class="absolute left-1/2 transform -translate-x-1/2 z-[80] bg-red-600 text-white px-10 py-5 rounded-full font-bold shadow-[0_0_30px_rgba(255,0,0,0.8)] animate-pulse pointer-events-auto text-xl border-4 border-white text-center flex flex-col items-center transition-all duration-300"
+      :class="showModal ? 'top-6' : 'top-1/2 -translate-y-1/2'"
+    >
+      <div>[[ gameState.pending_action.message ]]</div>
+      <button
+        @click="cancelPendingAction"
+        class="mt-4 bg-black hover:bg-gray-800 text-white text-sm px-6 py-2 rounded-full border-2 border-gray-400 shadow-lg cursor-pointer"
+      >
+        × スキップ(キャンセル)する
+      </button>
+    </div>
+
+    <div
+      v-if="showModal"
+      class="absolute inset-0 bg-black bg-opacity-80 z-[60] flex flex-col items-center justify-center p-8 pointer-events-auto"
+    >
+      <div
+        class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-full max-h-[80vh] flex flex-col border-2 border-gray-500"
+      >
+        <div
+          class="flex justify-between items-center p-4 border-b border-gray-700 bg-gray-900"
+        >
+          <h2 class="text-2xl font-bold text-white">
+            [[ modalTitle ]] ( [[ modalCards.length ]]枚 )
+          </h2>
+          <button
+            @click="closeModal"
+            class="text-gray-400 hover:text-white font-bold text-xl px-4"
+          >
+            ✕ 閉じる
+          </button>
+        </div>
+        <div class="flex-1 p-6 overflow-y-auto">
+          <div class="flex flex-wrap gap-4 justify-center">
+            <div
+              v-for="(cardId, index) in modalCards"
+              @mouseenter="hoveredCardId = cardId"
+              @mouseleave="hoveredCardId = null"
+              class="w-40 h-56 bg-gray-900 rounded-lg border-2 border-gray-600 overflow-hidden shadow-lg relative group"
+            >
+              <img
+                v-if="getCardData(cardId)?.image_url"
+                :src="getCardData(cardId).image_url"
+                class="w-full h-full object-cover"
+              />
+              <div
+                v-if="modalOwner === 'me' && modalType === 'set' && isMyTurn && gameState?.phase === 'main' && !gameState?.pending_action"
+                @click="playCard(index, 'set'); hoveredCardId = null;"
+                class="absolute inset-0 bg-blue-600 bg-opacity-80 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <span class="font-bold text-white text-xl drop-shadow"
+                  >使用する</span
+                ><span class="text-sm text-blue-200 mt-2"
+                  >Lv: [[ getCardData(cardId)?.level || 0 ]]</span
+                >
+              </div>
+              <div
+                v-if="modalOwner === 'me' && modalType === 'log' && gameState?.pending_action?.type === 'my_log_select'"
+                @click="resolveLogTarget(index)"
+                class="absolute inset-0 bg-yellow-600 bg-opacity-80 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <span class="font-bold text-white text-xl drop-shadow"
+                  >選択する</span
+                >
+              </div>
+            </div>
+            <div
+              v-if="modalCards.length === 0"
+              class="text-gray-400 font-bold text-xl mt-10"
+            >
+              カードがありません
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="bg-gray-900 p-2 flex justify-between items-center shadow-lg shrink-0 z-50 relative"
+    >
+      <div class="flex items-center space-x-4">
+        <div
+          class="text-lg font-bold"
+          :class="isMyTurn ? 'text-yellow-400' : 'text-gray-400'"
+        >
+          [[ isMyTurn ? 'あなたのターン' : '相手のターン' ]] (ターン: [[
+          gameState?.turn_count ]])
+        </div>
+        <div class="flex space-x-1">
+          <div
+            v-for="(phaseName, phaseKey) in phaseList"
+            :key="phaseKey"
+            class="px-3 py-1 text-xs font-bold rounded"
+            :class="gameState?.phase === phaseKey ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'"
+          >
+            [[ phaseName ]]
+          </div>
+        </div>
+      </div>
+      <div class="flex space-x-2">
+        <button
+          @click="proceedPhase"
+          :disabled="!isMyTurn || costSelectionMode || activeAttackerIndex !== null || gameState?.phase === 'end' || gameState?.pending_action"
+          class="px-4 py-2 rounded font-bold transition"
+          :class="isMyTurn && !costSelectionMode && gameState?.phase !== 'end' && !gameState?.pending_action ? 'bg-green-600 hover:bg-green-500 text-white shadow' : 'bg-gray-700 text-gray-500 cursor-not-allowed'"
+        >
+          [[ gameState?.phase === 'end' ? 'ターン終了処理中...' :
+          '次のフェイズへ ＞' ]]</button
+        ><button
+          @click="forceEndMatch"
+          class="bg-red-800 hover:bg-red-700 px-4 py-2 rounded text-xs font-bold text-white ml-4"
+        >
+          対戦終了
+        </button>
+      </div>
+    </div>
+
+    <div class="flex-1 flex flex-col justify-between p-4 relative z-10">
+      <div
+        v-if="costSelectionMode"
+        class="absolute inset-0 bg-black bg-opacity-70 z-20"
+      ></div>
+      <div
+        v-if="costSelectionMode"
+        class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50"
+      >
+        <div
+          class="bg-purple-900 bg-opacity-95 text-white p-6 rounded-lg shadow-2xl text-center border-2 border-purple-400 pointer-events-auto"
+        >
+          <h2 class="text-2xl font-bold mb-2">コスト支払い</h2>
+          <p class="mb-4 text-sm">
+            手札かフィールドから
+            <span class="text-yellow-400 font-bold text-xl"
+              >[[ requiredCost ]]</span
+            >
+            枚選んでください。<br /><span class="text-gray-300"
+              >(現在選択中: [[ currentSelectedCost ]] / [[ requiredCost
+              ]])</span
+            >
+          </p>
+          <div class="flex justify-center space-x-4 mt-6">
+            <button
+              @click="cancelCostSelection"
+              class="bg-gray-600 hover:bg-gray-500 px-6 py-2 rounded font-bold"
+            >
+              キャンセル</button
+            ><button
+              @click="confirmPlay"
+              :disabled="currentSelectedCost !== requiredCost"
+              class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              決定してプレイ
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <h1
+        class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[120px] font-black opacity-5 whitespace-nowrap pointer-events-none z-0"
+      >
+        [[ isMyTurn ? 'YOUR TURN' : 'OPPONENT TURN' ]]
+      </h1>
+
+      <div
+        class="absolute right-4 top-1/4 flex flex-col items-end space-y-2 opacity-80 pointer-events-none z-0"
+      >
+        <div
+          class="text-xs text-gray-300 font-bold bg-black bg-opacity-50 px-2 rounded"
+        >
+          相手の虹エリア
+        </div>
+        <div class="flex space-x-1">
+          <div
+            v-for="c in getOpponentBoard()?.color_zone.filter(c => c.is_rainbow)"
+            class="w-6 h-6 rounded-full border border-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+            :class="getColorClass(c.color)"
+          ></div>
+        </div>
+      </div>
+      <div
+        class="absolute right-4 bottom-1/4 flex flex-col items-end space-y-2 opacity-80 pointer-events-none z-0"
+      >
+        <div
+          class="text-xs text-red-300 font-bold bg-black bg-opacity-50 px-2 rounded"
+        >
+          自分の虹エリア
+        </div>
+        <div class="flex space-x-1">
+          <div
+            v-for="c in getMyBoard()?.color_zone.filter(c => c.is_rainbow)"
+            class="w-6 h-6 rounded-full border border-white"
+            :class="getColorClass(c.color)"
+          ></div>
+        </div>
+      </div>
+
+      <div
+        class="flex flex-col items-center w-full mb-4 relative z-10 pointer-events-auto"
+        :class="!isMyTurn ? 'opacity-100' : 'opacity-75'"
+      >
+        <div class="flex space-x-2 mb-4 h-16 pointer-events-auto">
+          <div
+            v-for="(c, i) in getOpponentBoard()?.color_zone"
+            v-show="!c.is_rainbow"
+            @click="declareColorCall(i)"
+            class="w-12 h-16 rounded border-2 shadow flex items-center justify-center transition"
+            :class="[c.is_open ? getColorClass(c.color) : 'bg-gray-800 border-gray-600', activeAttackerIndex !== null && !c.is_open ? 'ring-2 ring-yellow-400 cursor-pointer hover:-translate-y-2 animate-pulse' : '', gameState?.pending_action?.player_sid === socketId && gameState?.pending_action?.type === 'opp_color_zone_select' && !c.is_open ? 'ring-4 ring-red-500 cursor-pointer animate-pulse scale-105' : '']"
+          >
+            <span
+              v-if="!c.is_open"
+              class="text-gray-500 font-bold text-xs opacity-50"
+              >C</span
+            >
+          </div>
+        </div>
+
+        <div
+          class="flex space-x-2 h-28 mb-2 min-w-[450px] justify-center pointer-events-auto"
+        >
+          <div
+            v-for="n in 5"
+            :key="'opp_'+n"
+            @click="handleOpponentLiverClick(n-1)"
+            @mouseenter="hoveredCardId = getOpponentBoard()?.livers[n-1]?.id"
+            @mouseleave="hoveredCardId = null"
+            class="w-20 h-28 rounded border-2 flex items-center justify-center overflow-hidden relative transition-all duration-300"
+            :class="[getOpponentBoard()?.livers[n-1] ? 'bg-gray-800 border-red-500' : 'bg-gray-900 border-gray-700 border-dashed opacity-50', getOpponentBoard()?.livers[n-1]?.state === 'rest' ? 'rotate-90 scale-90' : '', activeAttackerIndex !== null && getOpponentBoard()?.livers[n-1]?.state === 'rest' ? 'ring-4 ring-yellow-400 cursor-pointer animate-pulse' : '', gameState?.pending_action?.player_sid === socketId && gameState?.pending_action?.type === 'opp_liver_select' && getOpponentBoard()?.livers[n-1] ? 'ring-4 ring-red-500 cursor-pointer animate-pulse scale-105' : '']"
+          >
+            <template v-if="getOpponentBoard()?.livers[n-1]"
+              ><img
+                v-if="getCardData(getOpponentBoard().livers[n-1].id)?.image_url"
+                :src="getCardData(getOpponentBoard().livers[n-1].id).image_url"
+                class="w-full h-full object-cover"
+              />
+              <div
+                v-if="getOpponentBoard().livers[n-1].temp_power < 0"
+                class="absolute bottom-0 right-0 bg-red-600 text-white text-xs font-bold px-1 rounded-tl shadow-lg border border-red-800"
+              >
+                [[ getOpponentBoard().livers[n-1].temp_power ]]
+              </div></template
+            >
+          </div>
+        </div>
+        <div class="flex space-x-4">
+          <div class="text-sm bg-gray-800 px-3 py-1 rounded">
+            デッキ: [[ getOpponentBoard()?.deck.length ]]
+          </div>
+          <div class="text-sm bg-gray-800 px-3 py-1 rounded">
+            手札: [[ getOpponentBoard()?.hand.length ]]
+          </div>
+          <div
+            @click="openModal('log', 'opponent')"
+            class="text-sm bg-gray-800 hover:bg-gray-700 cursor-pointer transition px-3 py-1 rounded text-purple-300"
+          >
+            ログ: [[ getOpponentBoard()?.log.length ]]
+          </div>
+          <div
+            @click="openModal('set', 'opponent')"
+            class="text-sm bg-green-900 border border-green-700 hover:bg-green-800 cursor-pointer transition px-3 py-1 rounded text-green-300 font-bold"
+          >
+            セット: [[ getOpponentBoard()?.set_zone.length ]]
+          </div>
+        </div>
+      </div>
+
+      <hr class="border-gray-700 my-1 relative z-10" />
+
+      <div
+        class="flex flex-col items-center w-full mt-2 relative pointer-events-auto"
+        :class="costSelectionMode ? 'z-40' : 'z-10'"
+      >
+        <div class="flex w-full max-w-4xl justify-between mb-4">
+          <div class="flex space-x-2">
+            <div
+              @mouseenter="hoveredCardId = getMyBoard()?.channel"
+              @mouseleave="hoveredCardId = null"
+              class="w-16 h-24 bg-yellow-900 border border-yellow-500 rounded relative overflow-hidden shadow-lg"
+            >
+              <span
+                class="absolute top-0 left-0 bg-yellow-600 text-[9px] px-1 font-bold z-10"
+                >チャンネル</span
+              ><img
+                v-if="getCardData(getMyBoard()?.channel)?.image_url"
+                :src="getCardData(getMyBoard()?.channel).image_url"
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div
+              @mouseenter="hoveredCardId = getMyBoard()?.stages.length > 0 ? getMyBoard().stages[0] : null"
+              @mouseleave="hoveredCardId = null"
+              class="w-16 h-24 rounded relative overflow-hidden flex items-center justify-center flex-col shadow-lg border-2"
+              :class="getMyBoard()?.stages.length > 0 ? 'bg-gray-800 border-purple-500' : 'bg-purple-900 border-purple-700 border-dashed opacity-70'"
+            >
+              <span
+                class="absolute top-0 left-0 bg-purple-600 text-[9px] px-1 font-bold w-full text-center z-10"
+                >ステージ</span
+              ><img
+                v-if="getMyBoard()?.stages.length > 0 && getCardData(getMyBoard().stages[0])?.image_url"
+                :src="getCardData(getMyBoard().stages[0]).image_url"
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div
+              @click="openModal('set', 'me')"
+              class="w-16 h-24 rounded relative overflow-hidden flex items-center justify-center flex-col shadow-lg border-2 cursor-pointer hover:ring-2 ring-white transition"
+              :class="getMyBoard()?.set_zone.length > 0 ? 'bg-gray-800 border-green-500' : 'bg-green-900 border-green-700 border-dashed opacity-70'"
+            >
+              <span
+                class="absolute top-0 left-0 bg-green-600 text-[9px] px-1 font-bold w-full text-center z-10"
+                >セット</span
+              >
+              <div
+                v-if="getMyBoard()?.set_zone.length > 0"
+                class="w-full h-full bg-gray-700 flex flex-col items-center justify-center"
+              >
+                <span class="text-xs font-bold text-gray-400">SET</span
+                ><span class="text-lg font-bold mt-1"
+                  >[[ getMyBoard()?.set_zone.length ]]</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="activeAttackerIndex !== null"
+            class="bg-yellow-500 text-black px-4 py-2 rounded-full font-bold shadow-lg animate-bounce flex items-center cursor-pointer h-10 mt-auto"
+            @click="cancelAction"
+          >
+            攻撃目標(ヨコの敵 or 裏のカラー)を選んでください
+            <span class="ml-2 text-xs bg-black text-white px-2 py-1 rounded"
+              >× キャンセル</span
+            >
+          </div>
+
+          <div class="flex space-x-2">
+            <div
+              @click="openModal('log', 'me')"
+              class="w-16 h-24 bg-gray-800 border border-gray-500 rounded relative flex flex-col items-center justify-center cursor-pointer hover:ring-2 ring-white transition"
+              :class="gameState?.pending_action?.type === 'my_log_select' ? 'ring-4 ring-yellow-400 animate-pulse' : ''"
+            >
+              <span
+                class="absolute top-0 left-0 bg-gray-600 text-[9px] px-1 font-bold w-full text-center"
+                >ログ</span
+              ><span class="text-xl font-bold"
+                >[[ getMyBoard()?.log.length ]]</span
+              >
+            </div>
+            <div
+              class="w-16 h-24 bg-gray-700 border border-blue-900 rounded relative flex flex-col items-center justify-center shadow-lg"
+            >
+              <span
+                class="absolute top-0 left-0 bg-blue-800 text-[9px] px-1 font-bold w-full text-center"
+                >デッキ</span
+              ><span class="text-xl font-bold text-yellow-300"
+                >[[ getMyBoard()?.deck.length ]]</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex space-x-2 h-32 mb-2 border-b border-dashed border-gray-600 pb-2 min-w-[500px] justify-center relative"
+        >
+          <div
+            v-for="n in 5"
+            :key="'my_'+n"
+            @click="selectLiverAction(n-1)"
+            @mouseenter="hoveredCardId = getMyBoard()?.livers[n-1]?.id"
+            @mouseleave="hoveredCardId = null"
+            class="w-24 h-32 rounded border-2 flex items-center justify-center overflow-hidden relative shadow-lg transition-all duration-300 pointer-events-auto"
+            :class="[getMyBoard()?.livers[n-1] ? 'bg-gray-800 border-blue-400' : 'bg-gray-900 border-gray-700 border-dashed', getMyBoard()?.livers[n-1]?.state === 'rest' ? 'rotate-90 scale-90 opacity-80' : '', !costSelectionMode && getMyBoard()?.livers[n-1] && gameState?.phase === 'action' && getMyBoard()?.livers[n-1]?.state === 'stand' && !gameState?.pending_action ? 'hover:-translate-y-2 cursor-pointer hover:border-yellow-400' : '', activeAttackerIndex === n-1 ? 'ring-4 ring-yellow-400 scale-110 -translate-y-4' : '', costSelectionMode && getMyBoard()?.livers[n-1] ? 'cursor-pointer hover:scale-105 relative z-50' : '', selectedCostFieldIndices.includes(n-1) ? 'ring-4 ring-purple-500 scale-105 opacity-50' : '', gameState?.pending_action?.player_sid === socketId && gameState?.pending_action?.type === 'my_liver_select' && getMyBoard()?.livers[n-1] ? 'ring-4 ring-yellow-400 cursor-pointer animate-pulse scale-105' : '']"
+          >
+            <template v-if="getMyBoard()?.livers[n-1]"
+              ><img
+                v-if="getCardData(getMyBoard().livers[n-1].id)?.image_url"
+                :src="getCardData(getMyBoard().livers[n-1].id).image_url"
+                class="w-full h-full object-cover"
+              />
+              <div
+                v-if="selectedCostFieldIndices.includes(n-1)"
+                class="absolute inset-0 bg-purple-600 bg-opacity-60 flex items-center justify-center"
+              >
+                <span class="text-white font-bold">コスト</span>
+              </div></template
+            >
+          </div>
+        </div>
+
+        <div class="flex space-x-2 mb-4 h-10 w-full justify-center opacity-70">
+          <div
+            v-for="(c, i) in getMyBoard()?.color_zone"
+            v-show="!c.is_rainbow"
+            class="w-8 h-10 rounded border border-gray-500 flex items-center justify-center"
+            :class="c.is_open ? getColorClass(c.color) : 'bg-gray-800'"
+          ></div>
+        </div>
+
+        <div class="flex w-full max-w-4xl justify-between items-end relative">
+          <button
+            v-if="gameState?.turn_count === 1 && !getMyBoard()?.mulligan_done && !costSelectionMode"
+            @click="doMulligan"
+            class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded text-white font-bold shadow-lg pointer-events-auto"
+          >
+            マリガン
+          </button>
+          <div v-else></div>
+
+          <div
+            class="flex space-x-1 p-2 bg-gray-900 bg-opacity-70 rounded-lg shadow-2xl relative pointer-events-auto"
+            :class="costSelectionMode ? 'z-50' : 'z-40'"
+          >
+            <div
+              v-for="(cardId, index) in getMyBoard()?.hand"
+              @click="handleHandClick(index)"
+              @mouseenter="hoveredCardId = cardId"
+              @mouseleave="hoveredCardId = null"
+              class="w-20 h-28 bg-gray-800 rounded border border-gray-400 overflow-hidden shadow-xl transform transition cursor-pointer relative group"
+              :class="[!costSelectionMode && (gameState?.phase === 'main' || gameState?.phase === 'set') && !gameState?.pending_action ? 'hover:-translate-y-4' : '', costSelectionMode && !(pendingPlayCardZone === 'hand' && index === pendingPlayCardIndex) ? 'hover:-translate-y-2' : '', selectedCostHandIndices.includes(index) ? 'ring-4 ring-purple-500 -translate-y-4 opacity-50' : '', costSelectionMode && pendingPlayCardZone === 'hand' && index === pendingPlayCardIndex ? 'opacity-20 cursor-not-allowed pointer-events-none' : '', gameState?.pending_action?.player_sid === socketId && gameState?.pending_action?.type === 'my_hand_select' ? 'ring-4 ring-yellow-400 cursor-pointer animate-pulse' : '']"
+            >
+              <img
+                v-if="getCardData(cardId)?.image_url"
+                :src="getCardData(cardId).image_url"
+                class="w-full h-full object-cover"
+              />
+              <div
+                v-if="!costSelectionMode && gameState?.phase === 'main' && !gameState?.pending_action"
+                class="absolute inset-0 bg-blue-600 bg-opacity-80 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <span class="font-bold text-white drop-shadow">プレイ</span
+                ><span class="text-[10px] text-blue-200"
+                  >Lv: [[ getCardData(cardId)?.level || 0 ]]</span
+                >
+              </div>
+              <div
+                v-if="!costSelectionMode && gameState?.phase === 'set' && !gameState?.pending_action"
+                class="absolute inset-0 bg-green-600 bg-opacity-80 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <span class="font-bold text-white drop-shadow">セット</span>
+              </div>
+              <div
+                v-if="selectedCostHandIndices.includes(index)"
+                class="absolute inset-0 bg-purple-600 bg-opacity-60 flex items-center justify-center"
+              >
+                <span class="text-white font-bold text-xs">コスト</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+<script>
+  const { createApp } = Vue;
+  createApp({
+    delimiters: ["[[", "]]"],
+    data() {
+      return {
+        socket: null,
+        socketId: null,
+        myDecks: [],
+        selectedDeckId: "",
+        roomPassword: "",
+        currentView: "login",
+        roomPlayers: {},
+        gameState: null,
+        allCards: [],
+        phaseList: {
+          start: "1. スタート",
+          main: "2. メイン",
+          action: "3. アクション",
+          set: "4. セット",
+          end: "5. エンド",
+        },
+        costSelectionMode: false,
+        pendingPlayCardIndex: null,
+        requiredCost: 0,
+        selectedCostHandIndices: [],
+        selectedCostFieldIndices: [],
+        activeAttackerIndex: null,
+        showModal: false,
+        modalTitle: "",
+        modalCards: [],
+        modalType: "",
+        modalOwner: "",
+        pendingPlayCardZone: "hand",
+        matchResult: null,
+        matchResultMessage: "",
+        hoveredCardId: null,
+      };
+    },
+    computed: {
+      isJoinable() {
+        return /^\d{4}$/.test(this.roomPassword) && this.selectedDeckId !== "";
+      },
+      amIReady() {
+        return this.socketId && this.roomPlayers[this.socketId]?.ready;
+      },
+      isMyTurn() {
+        return (
+          this.gameState && this.gameState.turn_player_sid === this.socketId
+        );
+      },
+      currentSelectedCost() {
+        return (
+          this.selectedCostHandIndices.length +
+          this.selectedCostFieldIndices.length
+        );
+      },
+    },
+    methods: {
+      async loadInitialData() {
+        this.myDecks = await (await fetch("/api/decks")).json();
+        this.allCards = await (await fetch("/api/cards")).json();
+      },
+      getCardData(id) {
+        return this.allCards.find((c) => c.id === id);
+      },
+      getDeckName(deckId) {
+        const deck = this.myDecks.find((d) => d.id === deckId);
+        return deck ? deck.name : "Unknown Deck";
+      },
+      getSlotPlayer(slotNumber) {
+        const playerIds = Object.keys(this.roomPlayers);
+        if (playerIds.length === 0) return null;
+        if (slotNumber === 1)
+          return this.roomPlayers[this.socketId]
+            ? { id: this.socketId, ...this.roomPlayers[this.socketId] }
+            : null;
+        const opponentId = playerIds.find((id) => id !== this.socketId);
+        return opponentId
+          ? { id: opponentId, ...this.roomPlayers[opponentId] }
+          : null;
+      },
+      getMyBoard() {
+        return this.gameState ? this.gameState.board[this.socketId] : null;
+      },
+      getOpponentBoard() {
+        if (!this.gameState) return null;
+        const opponentId = Object.keys(this.gameState.board).find(
+          (id) => id !== this.socketId,
+        );
+        return opponentId ? this.gameState.board[opponentId] : null;
+      },
+      getColorClass(colorName) {
+        const colors = {
+          RED: "bg-red-500 border-red-700",
+          ORANGE: "bg-orange-500 border-orange-700",
+          YELLOW: "bg-yellow-400 border-yellow-600",
+          GREEN: "bg-green-500 border-green-700",
+          LIGHTBLUE: "bg-cyan-400 border-cyan-600",
+          BLUE: "bg-blue-600 border-blue-800",
+          PURPLE: "bg-purple-500 border-purple-700",
+        };
+        return colors[colorName] || "bg-gray-500 border-gray-700";
+      },
+      joinRoom() {
+        this.socket.emit("join_match_room", {
+          room_id: this.roomPassword,
+          deck_id: this.selectedDeckId,
+        });
+      },
+      leaveRoom() {
+        window.location.reload();
+      },
+      changeDeck() {
+        this.socket.emit("update_deck", {
+          room_id: this.roomPassword,
+          deck_id: this.selectedDeckId,
+        });
+      },
+      toggleReady() {
+        this.socket.emit("toggle_ready", { room_id: this.roomPassword });
+      },
+      forceEndMatch() {
+        if (confirm("対戦を終了しますか？"))
+          this.socket.emit("end_match", { room_id: this.roomPassword });
+      },
+      doMulligan() {
+        if (confirm("手札を引き直しますか？"))
+          this.socket.emit("do_mulligan", { room_id: this.roomPassword });
+      },
+      proceedPhase() {
+        this.cancelAction();
+        if (this.isMyTurn)
+          this.socket.emit("next_phase", { room_id: this.roomPassword });
+      },
+      openModal(type, owner) {
+        this.modalType = type;
+        this.modalOwner = owner;
+        this.modalTitle =
+          (owner === "me" ? "自分の" : "相手の") +
+          (type === "log" ? "ログ" : "セットエリア");
+        const targetBoard =
+          owner === "me" ? this.getMyBoard() : this.getOpponentBoard();
+        this.modalCards =
+          type === "log" ? targetBoard.log : targetBoard.set_zone;
+        this.showModal = true;
+      },
+      closeModal() {
+        this.showModal = false;
+        this.hoveredCardId = null;
+      },
+
+      playCard(index, fromZone = "hand") {
+        if (!this.isMyTurn || this.gameState?.pending_action) return;
+        if (fromZone === "set") this.closeModal();
+        if (this.gameState.phase === "set" && fromZone === "hand") {
+          if (this.getMyBoard().has_set_this_turn) {
+            alert("セットフェイズに置けるカードは1ターンに1枚までです！");
+            return;
+          }
+          this.socket.emit("set_card", {
+            room_id: this.roomPassword,
+            card_index: index,
+          });
+          return;
+        }
+        if (this.gameState.phase !== "main") {
+          alert(
+            "カードのプレイは「メイン」、伏せるのは「セット」フェイズでのみ可能です。",
+          );
+          return;
+        }
+        const targetZone =
+          fromZone === "hand"
+            ? this.getMyBoard().hand
+            : this.getMyBoard().set_zone;
+        const cardId = targetZone[index];
+        const cardData = this.getCardData(cardId);
+        const cost = cardData.level || 0;
+        if (cardData.type === "LIVER" && this.getMyBoard().livers.length >= 5) {
+          if (cost === 0) {
+            alert(
+              "フィールドに出せるライバーは5枚までです！\n(コスト0のカードでは盤面を空けられません)",
+            );
+            return;
+          }
+        }
+        if (cardData.type === "STAGE" && this.getMyBoard().stages.length >= 1) {
+          if (cost === 0) {
+            alert("ステージは1枚までです！");
+            return;
+          }
+        }
+        const availableHand =
+          fromZone === "hand"
+            ? this.getMyBoard().hand.length - 1
+            : this.getMyBoard().hand.length;
+        if (availableHand + this.getMyBoard().livers.length < cost) {
+          alert(`コストが足りません。(必要コスト: ${cost}枚)`);
+          return;
+        }
+        if (cost === 0) {
+          this.socket.emit("play_card", {
+            room_id: this.roomPassword,
+            card_index: index,
+            cost_hand: [],
+            cost_field: [],
+            from_zone: fromZone,
+          });
+        } else {
+          this.costSelectionMode = true;
+          this.pendingPlayCardIndex = index;
+          this.pendingPlayCardZone = fromZone;
+          this.requiredCost = cost;
+          this.selectedCostHandIndices = [];
+          this.selectedCostFieldIndices = [];
+        }
+      },
+      toggleCostHand(index) {
+        if (
+          this.pendingPlayCardZone === "hand" &&
+          index === this.pendingPlayCardIndex
+        )
+          return;
+        const idx = this.selectedCostHandIndices.indexOf(index);
+        if (idx > -1) this.selectedCostHandIndices.splice(idx, 1);
+        else if (this.currentSelectedCost < this.requiredCost)
+          this.selectedCostHandIndices.push(index);
+      },
+      toggleCostField(index) {
+        const idx = this.selectedCostFieldIndices.indexOf(index);
+        if (idx > -1) this.selectedCostFieldIndices.splice(idx, 1);
+        else if (this.currentSelectedCost < this.requiredCost)
+          this.selectedCostFieldIndices.push(index);
+      },
+      confirmPlay() {
+        if (this.currentSelectedCost !== this.requiredCost) return;
+        const targetZone =
+          this.pendingPlayCardZone === "hand"
+            ? this.getMyBoard().hand
+            : this.getMyBoard().set_zone;
+        const cardData = this.getCardData(
+          targetZone[this.pendingPlayCardIndex],
+        );
+        if (
+          cardData.type === "LIVER" &&
+          this.getMyBoard().livers.length -
+            this.selectedCostFieldIndices.length >=
+            5
+        ) {
+          alert(
+            "フィールドに出せるライバーは5枚までです！\n(コストとしてフィールドのライバーを選択して枠を空けてください)",
+          );
+          return;
+        }
+        this.socket.emit("play_card", {
+          room_id: this.roomPassword,
+          card_index: this.pendingPlayCardIndex,
+          cost_hand: this.selectedCostHandIndices,
+          cost_field: this.selectedCostFieldIndices,
+          from_zone: this.pendingPlayCardZone,
+        });
+        this.cancelCostSelection();
+      },
+      cancelCostSelection() {
+        this.costSelectionMode = false;
+        this.pendingPlayCardIndex = null;
+        this.pendingPlayCardZone = "hand";
+        this.selectedCostHandIndices = [];
+        this.selectedCostFieldIndices = [];
+      },
+
+      // ★修正：各種クリックハンドラーの対象選択対応
+      handleOpponentLiverClick(oppIndex) {
+        if (
+          this.gameState?.pending_action?.player_sid === this.socketId &&
+          this.gameState.pending_action.type === "opp_liver_select"
+        ) {
+          if (this.getOpponentBoard().livers[oppIndex])
+            this.socket.emit("resolve_target", {
+              room_id: this.roomPassword,
+              target_idx: oppIndex,
+            });
+        } else {
+          this.declareAttack(oppIndex);
+        }
+      },
+      selectLiverAction(index) {
+        if (
+          this.gameState?.pending_action?.player_sid === this.socketId &&
+          this.gameState.pending_action.type === "my_liver_select"
+        ) {
+          if (this.getMyBoard().livers[index])
+            this.socket.emit("resolve_target", {
+              room_id: this.roomPassword,
+              target_idx: index,
+            });
+          return;
+        }
+        if (this.costSelectionMode) {
+          this.toggleCostField(index);
+          return;
+        }
+        if (
+          this.isMyTurn &&
+          this.gameState.phase === "action" &&
+          !this.gameState?.pending_action
+        ) {
+          const liver = this.getMyBoard().livers[index];
+          if (liver && liver.state === "stand") {
+            this.activeAttackerIndex = index;
+          }
+        }
+      },
+      declareColorCall(colorZoneIndex) {
+        if (
+          this.gameState?.pending_action?.player_sid === this.socketId &&
+          this.gameState.pending_action.type === "opp_color_zone_select"
+        ) {
+          this.socket.emit("resolve_target", {
+            room_id: this.roomPassword,
+            target_idx: colorZoneIndex,
+          });
+          return;
+        }
+        if (this.activeAttackerIndex !== null) {
+          const oppColorCard =
+            this.getOpponentBoard().color_zone[colorZoneIndex];
+          if (!oppColorCard.is_rainbow) {
+            this.socket.emit("declare_action", {
+              room_id: this.roomPassword,
+              action_type: "color_call",
+              attacker_idx: this.activeAttackerIndex,
+              target_idx: colorZoneIndex,
+            });
+            this.activeAttackerIndex = null;
+          }
+        }
+      },
+      handleHandClick(index) {
+        if (
+          this.gameState?.pending_action?.player_sid === this.socketId &&
+          this.gameState.pending_action.type === "my_hand_select"
+        ) {
+          this.socket.emit("resolve_target", {
+            room_id: this.roomPassword,
+            target_idx: index,
+          });
+          return;
+        }
+        if (this.costSelectionMode) {
+          this.toggleCostHand(index);
+        } else {
+          this.playCard(index, "hand");
+        }
+      },
+      resolveLogTarget(index) {
+        this.socket.emit("resolve_target", {
+          room_id: this.roomPassword,
+          target_idx: index,
+        });
+        this.closeModal();
+      },
+      cancelPendingAction() {
+        this.socket.emit("cancel_pending_action", {
+          room_id: this.roomPassword,
+        });
+      },
+      cancelAction() {
+        this.activeAttackerIndex = null;
+      },
+    },
+    mounted() {
+      this.loadInitialData();
+      this.socket = io();
+      this.socket.on("connect", () => {
+        this.socketId = this.socket.id;
+      });
+      this.socket.on("join_error", (data) => {
+        alert(data.message);
+      });
+      this.socket.on("join_success", () => {
+        this.currentView = "lobby";
+      });
+      this.socket.on("room_updated", (playersData) => {
+        this.roomPlayers = playersData;
+      });
+      this.socket.on("match_start", (data) => {
+        this.gameState = data.game;
+        this.currentView = "battle";
+      });
+      this.socket.on("game_state_updated", (game) => {
+        this.gameState = game;
+        if (this.isMyTurn && this.gameState.phase === "end") {
+          setTimeout(() => {
+            if (this.gameState && this.gameState.phase === "end") {
+              this.socket.emit("next_phase", { room_id: this.roomPassword });
+            }
+          }, 1000);
+        }
+      });
+      this.socket.on("match_ended", (data) => {
+        if (data.winner_sid) {
+          this.matchResult = data.winner_sid === this.socketId ? "win" : "lose";
+          this.matchResultMessage = data.message;
+          setTimeout(() => {
+            this.matchResult = null;
+            this.gameState = null;
+            this.currentView = "lobby";
+          }, 3500);
+        } else {
+          alert(data.message);
+          this.gameState = null;
+          this.currentView = "lobby";
+        }
+      });
+      this.socket.on("play_error", (data) => {
+        alert(data.message);
+        this.cancelCostSelection();
+      });
+    },
+  }).mount("#play-app");
+</script>
+{% endblock %}

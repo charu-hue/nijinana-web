@@ -1,0 +1,33 @@
+{% extends 'base.html' %} {% block content %}
+<div class="flex h-full items-center justify-center">
+  <div
+    class="bg-gray-800 p-8 rounded-lg shadow-lg text-center space-y-4 w-96 border border-gray-700"
+  >
+    <h1 class="text-2xl font-bold border-b border-gray-600 pb-2">メニュー</h1>
+    {% if current_user.is_authenticated %}
+    <a
+      href="/decks"
+      class="block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded"
+      >デッキ一覧・作成</a
+    >
+    <a
+      href="/play"
+      class="block bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded"
+      >プレイルーム入室</a
+    >
+    {% else %}
+    <p class="text-gray-400 text-sm">遊ぶにはログインが必要です</p>
+    <a
+      href="/login"
+      class="block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded"
+      >ログイン画面へ</a
+    >
+    {% endif %}
+    <a
+      href="/admin"
+      class="block bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded"
+      >カード管理 (全開放)</a
+    >
+  </div>
+</div>
+{% endblock %}
