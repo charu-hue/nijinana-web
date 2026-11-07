@@ -820,6 +820,7 @@ def on_cancel_pending_action(data):
 
 def init_db():
     with app.app_context():
+        db.drop_all()
         db.create_all()
         if os.path.exists("cards.json") and Card.query.count() == 0:
             with open("cards.json", "r", encoding="utf-8") as f:

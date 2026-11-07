@@ -19,7 +19,7 @@ class Card(db.Model):
     card_class = db.Column(db.String(50))
     level = db.Column(db.Integer)
     power = db.Column(db.Integer)
-    color = db.Column(db.String(50))
+    color = db.Column(db.String(100))
     text = db.Column(db.Text)
     image_url = db.Column(db.Text)
 
