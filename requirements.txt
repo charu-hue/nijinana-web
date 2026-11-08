@@ -10,7 +10,6 @@ charset-normalizer==3.4.4
 click==8.3.0
 colorama==0.4.6
 dnspython==2.9.0
-eventlet==0.41.3
 Flask==3.0.3
 Flask-Bcrypt==1.0.1
 Flask-Login==0.6.3
