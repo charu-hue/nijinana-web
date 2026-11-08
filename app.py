@@ -33,7 +33,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
 migrate = Migrate(app, db)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -820,7 +820,6 @@ def on_cancel_pending_action(data):
 
 def init_db():
     with app.app_context():
-        db.drop_all()
         db.create_all()
         if os.path.exists("cards.json") and Card.query.count() == 0:
             with open("cards.json", "r", encoding="utf-8") as f:
