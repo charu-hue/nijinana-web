@@ -1,3 +1,7 @@
+import gevent.monkey
+
+gevent.monkey.patch_all()
+
 import os
 import json
 import random  # シャッフル用に必須です！
@@ -33,7 +37,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
 migrate = Migrate(app, db)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
